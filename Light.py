@@ -13,9 +13,12 @@ class Light:
     def update(self):
         if (self.pwm_support):
             #Update GPIO output
+            print "ON"
         else:
             if (brightness > 0):
                 #set pin on
+                print "ON"
             else:
+                print "OFF"
                 #turn pin off
 
