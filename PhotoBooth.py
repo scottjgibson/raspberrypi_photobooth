@@ -1,51 +1,14 @@
+import piggyphoto
 from fysom import Fysom
 from ConfigParser import SafeConfigParser 
 from Lighting import Lighting
+import pygame
+import time
 
-
-
-photosRemaining = 3
-
-# Transitions:
-def oninitialize(e):
-    photosRemaining = 3
-    print "Power Up Camera"
-    print "Initialize Lighting"
-    print "Sanity check (disk space)"
-    print "Lock Camera"
-    print "Test Camera"
-    return True
-
-def countownThree():
-    print "Turn Off Ready Lamp"
-    print "Turn On Three Lamp"
-    print "Play Tick Noise"
-    return True
-
-def countownToTwo():
-    print "Turn Off Three Lamp"
-    print "Turn On Two Lamp"
-    print "Play Tick Noise"
-    return True
-
-def countownToOne():
-    print "Turn Off Two Lamp"
-    print "Turn On One Lamp"
-    print "Play Tick Noise"
-    return True
-
-def onsnap_button(e):
-    photosRemaining -= 1
-    print "Turn Off One Lamp"
-    print "Turn On Flash Lamp"
-    print "Turn Off Two Lamp"
-    print "Turn On One Lamp"
-    print "Play Tick Noise"
-    return True
-
-def imageAquired():
-    print "Turn off flash"
-    return True
+#callback used when a button is pressed (tied to GPIO pin)
+def button_pressed():
+    if photo_booth.stateMachine.current == 'idle':
+        photo_booth.stateMachine.snap_photo()
 
 class LightingConfig():
     def __init__(self):
@@ -59,20 +22,125 @@ class LightingConfig():
         self.one_light_pin = 0
         self.one_pwm_support = False
 
+# Transitions:
+def onbeforeinitialize(e):
+    print "Initialize Lighting"
+    photo_booth.lighting.flash_light.brightness = 10;
+    photo_booth.lighting.ready_light.brightness = 0;
+    photo_booth.lighting.three_light.brightness = 0;
+    photo_booth.lighting.two_light.brightness = 0;
+    photo_booth.lighting.one_light.brightness = 0;
+    photo_booth.lighting.one_light.brightness = 0;
+    photo_booth.lighting.setLighting();
+
+    print "Power Up Camera"
+    #set camera power GPIO
+    #wait a while
+
+    #see if camera is available
+    try: 
+        photo_booth.camera = piggyphoto.camera()
+        photo_booth.camera.init()
+    finally:
+        print "Camera can not be initialized"
+        time.sleep(2)
+        photo_booth.stateMachine.initialize()
+        return False
+
+    photo_booth.photosRemaining = 3
+
+    
+    print "Sanity check (disk space)"
+    return True
+
+def onbeforesnap_button(e):
+    print "Button Pressed"
+    photo_booth.photosRemaining -= 1
+    return True
+
+def oncountdown(e):
+    #3
+    print "Turn Off Ready Lamp"
+    photo_booth.lighting.ready_light.brightness = 0;
+    print "Turn On Three Lamp"
+    photo_booth.lighting.three_light.brightness = 100;
+    photo_booth.lighting.setLighting();
+    print "Play Tick Noise"
+    pygame.mixer.music.load("countdown_tick.wav")
+    pygame.mixer.music.play()
+    time.sleep(1)
+
+    #2
+    print "Turn Off Three Lamp"
+    photo_booth.lighting.three_light.brightness = 0;
+    print "Turn On Two Lamp"
+    photo_booth.lighting.two_light.brightness = 100;
+    photo_booth.lighting.setLighting();
+    print "Play Tick Noise"
+    pygame.mixer.music.load("countdown_tick.wav")
+    pygame.mixer.music.play()
+    time.sleep(1)
+
+    #1
+    print "Turn Off Two Lamp"
+    photo_booth.lighting.two_light.brightness = 0;
+    print "Turn On One Lamp"
+    photo_booth.lighting.one_light.brightness = 100;
+    photo_booth.lighting.setLighting();
+    print "Play Tick Noise"
+    pygame.mixer.music.load("countdown_tick.wav")
+    pygame.mixer.music.play()
+    time.sleep(1)
+
+    print "Turn Off One Lamp"
+    photo_booth.lighting.one_light.brightness = 0;
+    print "Turn On Flash Lamp"
+    photo_booth.lighting.flash_light.brightness = 100;
+    photo_booth.lighting.setLighting();
+    print "Take Photo"
+    try:
+        camera.capture_image('file.jpg')
+    finally:
+        print "Camera Error"
+    photo_booth.lighting.flash_light.brightness = 0;
+    photo_booth.lighting.setLighting();
+
+    return True
+
+
+def onidle(e):
+    photo_booth.photosRemaining = 3
+    photo_booth.lighting.flash_light.brightness = 10;
+    photo_booth.lighting.ready_light.brightness = 100;
+    photo_booth.lighting.three_light.brightness = 0;
+    photo_booth.lighting.two_light.brightness = 0;
+    photo_booth.lighting.one_light.brightness = 0;
+    photo_booth.lighting.setLighting();
+    print "Update Marqee Display"
+    return True
+
+
+
 class PhotoBooth:
     def __init__(self, config_file):
+        self.photosRemaining = 3
         self.lighting_config = LightingConfig()
         self.parseConfigFile(config_file)
         self.lighting = Lighting(self.lighting_config)
         self.verbose = False
+        pygame.mixer.init()
+        pygame.mixer.music.set_volume(1)
+        pygame.mixer.music.load("startup.wav")
+        pygame.mixer.music.play()
         self.stateMachine = Fysom({
             'initial': 'uninitialized',
             'events':[
-                {'name': 'initialize', 'src':'uninitialized', 'dst':'idle'},
-                {'name': 'snap_button', 'src':'idle', 'dst':'countdown_three'}],
+                {'name': 'initialize', 'src':['uninitialized', 'idle', 'coundown', 'take_photo'], 'dst':'idle'},
+                {'name': 'snap_button', 'src':'idle', 'dst':'countdown'}],
             'callbacks':{
-                'oninitialize': oninitialize,
-                'onsnap_button': onsnap_button }})
+                'onbeforeinitialize': onbeforeinitialize,
+                'onbeforesnap_button': onbeforesnap_button,
+                'oncountdown': oncountdown}})
 
 
 
@@ -93,10 +161,18 @@ class PhotoBooth:
 
     def run(self):
         self.stateMachine.initialize()
+        #start periodic timer
+
+
+photo_booth = PhotoBooth('config.ini')
+
+
 
 
 
 if __name__ == '__main__':
-    photo_booth  = PhotoBooth('config.ini')
     photo_booth.run()
+    time.sleep(1)
+    button_pressed();
+    time.sleep(1)
 
