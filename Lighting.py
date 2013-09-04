@@ -2,11 +2,11 @@ from Light import Light
 
 class Lighting:
     def __init__(self, config):
-        self.flash_light = Light("flash", 1, True)
-        self.ready_light = Light("ready", 2, True)
-        self.three_light = Light("three", 3, True)
-        self.two_light = Light("two", 4, True)
-        self.one_light = Light("one", 5, True)
+        self.flash_light = Light("flash", config.flash_light_pin, True)
+        self.ready_light = Light("ready", config.ready_light_pin, True)
+        self.three_light = Light("three", config.three_light_pin, True)
+        self.two_light = Light("two", config.two_light_pin, True)
+        self.one_light = Light("one", config.one_light_pin, True)
         self.all_lights = [self.flash_light, self.ready_light, self.three_light, self.two_light, self.one_light];
         self.flash_light.brightness = 10;
         self.ready_light.brightness = 0;

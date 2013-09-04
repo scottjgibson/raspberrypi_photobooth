@@ -4,11 +4,12 @@ from ConfigParser import SafeConfigParser
 from Lighting import Lighting
 import pygame
 import time
+try:
+    import RPi.GPIO as GPIO
+except RuntimeError:
+    print("Error importing RPi.GPIO!  This is probably because you need superuser privileges.  You can achieve this by using 'sudo' to run your script")
 
-#callback used when a button is pressed (tied to GPIO pin)
-def button_pressed():
-    if photo_booth.stateMachine.current == 'idle':
-        photo_booth.stateMachine.snap_photo()
+
 
 class LightingConfig():
     def __init__(self):
@@ -126,9 +127,12 @@ class PhotoBooth:
         self.photosRemaining = 3
         self.lighting_config = LightingConfig()
         self.parseConfigFile(config_file)
+        GPIO.setmode(GPIO.BOARD)
+        pygame.mixer.init()
         self.lighting = Lighting(self.lighting_config)
         self.verbose = False
-        pygame.mixer.init()
+        GPIO.setup(self.shutter_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.add_event_detect(self.shutter_switch_pin, GPIO.FALLING, callback=self.shutter_switch_callback)
         pygame.mixer.music.set_volume(1)
         pygame.mixer.music.load("startup.wav")
         pygame.mixer.music.play()
@@ -142,12 +146,17 @@ class PhotoBooth:
                 'onbeforesnap_button': onbeforesnap_button,
                 'oncountdown': oncountdown}})
 
+    #callback used when a button is pressed (tied to GPIO pin)
+    def shutter_switch_callback():
+        if self.stateMachine.current == 'idle':
+            self.stateMachine.snap_photo()
 
 
     def parseConfigFile(self, configFile):
         config = SafeConfigParser()
         config.read(configFile)
         self.vebose = config.getboolean('general_config', 'verbose')
+        self.shutter_switch_pin  = config.getint('general_config', 'shutter_switch_pin')
         self.lighting_config.ready_light_pin = config.getint('lighting_config', 'ready_light_pin')
         self.lighting_config.ready_pwm_support = config.getboolean('lighting_config', 'ready_light_pwm_support')
         self.lighting_config.flash_light_pin = config.getint('lighting_config', 'flash_light_pin')
