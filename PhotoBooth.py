@@ -29,13 +29,7 @@ class LightingConfig():
 def onbeforeinitialize(e):
     print "---- INITIALIZE ----"
     print "Initialize Lighting"
-    photo_booth.lighting.flash_light.brightness = 10;
-    photo_booth.lighting.ready_light.brightness = 0;
-    photo_booth.lighting.three_light.brightness = 0;
-    photo_booth.lighting.two_light.brightness = 0;
-    photo_booth.lighting.one_light.brightness = 0;
-    photo_booth.lighting.one_light.brightness = 0;
-    photo_booth.lighting.setLighting();
+    photo_booth.lighting.setLightingIdle();
 
     #print "Power Up Camera"
     #set camera power GPIO
@@ -55,43 +49,27 @@ def onbeforesnap_button(e):
 def oncountdown(e):
     print "---- Photo Countdown ----"
     #3
-    print "Turn Off Ready Lamp"
-    photo_booth.lighting.ready_light.brightness = 0;
-    print "Turn On Three Lamp"
-    photo_booth.lighting.three_light.brightness = 100;
-    photo_booth.lighting.setLighting();
+    photo_booth.lighting.setLightingThree();
     print "Play Tick Noise"
     pygame.mixer.music.load("countdown_tick.wav")
     pygame.mixer.music.play()
     time.sleep(1)
 
     #2
-    print "Turn Off Three Lamp"
-    photo_booth.lighting.three_light.brightness = 0;
-    print "Turn On Two Lamp"
-    photo_booth.lighting.two_light.brightness = 100;
-    photo_booth.lighting.setLighting();
+    photo_booth.lighting.setLightingTwo();
     print "Play Tick Noise"
     pygame.mixer.music.load("countdown_tick.wav")
     pygame.mixer.music.play()
     time.sleep(1)
 
     #1
-    print "Turn Off Two Lamp"
-    photo_booth.lighting.two_light.brightness = 0;
-    print "Turn On One Lamp"
-    photo_booth.lighting.one_light.brightness = 100;
-    photo_booth.lighting.setLighting();
+    photo_booth.lighting.setLightingOne();
     print "Play Tick Noise"
     pygame.mixer.music.load("countdown_tick.wav")
     pygame.mixer.music.play()
     time.sleep(1)
 
-    print "Turn Off One Lamp"
-    photo_booth.lighting.one_light.brightness = 0;
-    print "Turn On Flash Lamp"
-    photo_booth.lighting.flash_light.brightness = 100;
-    photo_booth.lighting.setLighting();
+    photo_booth.lighting.setLightingFlash();
     print "Take Photo"
     try:
         if photo_booth.cameraError == False:
@@ -101,8 +79,8 @@ def oncountdown(e):
     except:
         print "Camera Error"
         photo_booth.cameraError = True;
-    photo_booth.lighting.flash_light.brightness = 10;
-    photo_booth.lighting.setLighting();
+        photo_booth.lighting.flash_light.brightness = 10;
+        photo_booth.lighting.setLighting();
 
     if photo_booth.cameraError == True:
         photo_booth.stateMachine.camera_error()
@@ -114,6 +92,7 @@ def oncountdown(e):
 
 def oncamera_error(e):
     print "---- CAMERA ERROR ----"
+    photo_booth.lighting.setLightingError()
     while photo_booth.cameraError == True:
         print "Cycle Camera Power"
         print "wait a while"
@@ -131,13 +110,7 @@ def oncamera_error(e):
 def onbeforephoto_complete(e):
     print "---- PHOTO COMPLETE ----"
     photo_booth.photosRemaining = 3
-    photo_booth.lighting.flash_light.brightness = 10;
-    photo_booth.lighting.ready_light.brightness = 100;
-    photo_booth.lighting.three_light.brightness = 0;
-    photo_booth.lighting.two_light.brightness = 0;
-    photo_booth.lighting.one_light.brightness = 0;
-    photo_booth.lighting.setLighting();
-    #print " TODO: Update Marqee Display"
+    photo_booth.lighting.setLightingIdle()
     return True
 
 
