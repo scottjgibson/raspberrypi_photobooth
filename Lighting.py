@@ -1,12 +1,20 @@
+from Adafruit_PWM_Servo_Driver import PWM
 from Light import Light
 
+
 class Lighting:
-    def __init__(self, config):
-        self.flash_light = Light("flash", config.flash_light_pin, True)
-        self.ready_light = Light("ready", config.ready_light_pin, True)
-        self.three_light = Light("three", config.three_light_pin, True)
-        self.two_light = Light("two", config.two_light_pin, True)
-        self.one_light = Light("one", config.one_light_pin, True)
+    def __init__(self, config, pwm=False):
+        # Initialise the PWM device using the default address
+        if (pwm != False):
+            self.pwm = pwm
+        else:
+            self.pwm = PWM(0x40, debug=True)
+            self.pwm.setPWMFreq(1600)                        # Set frequency to 60 Hz
+        self.flash_light = Light("flash", config.flash_light_pin, self.pwm)
+        self.ready_light = Light("ready", config.ready_light_pin, self.pwm)
+        self.three_light = Light("three", config.three_light_pin, self.pwm)
+        self.two_light = Light("two", config.two_light_pin, self.pwm)
+        self.one_light = Light("one", config.one_light_pin, self.pwm)
         self.all_lights = [self.flash_light, self.ready_light, self.three_light, self.two_light, self.one_light];
         self.flash_light.brightness = 10;
         self.ready_light.brightness = 0;
