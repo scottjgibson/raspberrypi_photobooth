@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import piggyphoto
 from fysom import Fysom
 from Adafruit_PWM_Servo_Driver import PWM
@@ -15,6 +17,7 @@ import os
 from collections import namedtuple
 import traceback
 import pygame
+
 try:
     import RPi.GPIO as GPIO
 except RuntimeError:
@@ -265,7 +268,7 @@ class PhotoBooth:
                 self.main_logger.info("Take Photo")
                 try:
                     if self.cameraError == False:
-                        self.camera_logger.info("capturing %s/%d.jpg" % (self.storage_path, image_index))
+                        self.camera_logger.info("capturing %s/%05d.jpg" % (self.storage_path, image_index))
                         self.camera.capture_image("%s/%d.jpg" %(self.storage_path, image_index))
                     else:
                         self.camera_logger.error("Camera Error 1 - can't run capture_image")
