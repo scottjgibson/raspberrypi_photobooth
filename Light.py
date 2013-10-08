@@ -9,7 +9,7 @@ class Light:
         self.brightness = 0;
         self.gpio_pin = gpio_pin;
         self.pwm = pwm;
-        print "Light Init"
+        #print "Light Init"
         self.pwm.setPWM(self.gpio_pin, 0, int(round(interp(self.brightness, [0, 100], [0, 4095]))))
 
     def __str__(self):
@@ -18,6 +18,6 @@ class Light:
         ret += "GPIO Pin: %s\n" % self.gpio_pin
         return ret
     def update(self):
-        print "%s (Pin: %d):%d" % (self.name, self.gpio_pin, self.brightness)
+        #print "%s (Pin: %d):%d" % (self.name, self.gpio_pin, self.brightness)
         self.pwm.setPWM(self.gpio_pin, 0, int(round(interp(self.brightness, [0, 100], [0, 4095]))))
 

@@ -9,102 +9,45 @@ import time
 import schnapphoto		
 import datetime
 import os
+import logging
+import sys
+import os
+from collections import namedtuple
+import traceback
+
+_ntuple_diskusage = namedtuple('usage', 'total used free')
+
+def disk_usage(path):
+    """Return disk usage statistics about the given path.
+
+    Returned valus is a named tuple with attributes 'total', 'used' and
+    'free', which are the amount of total, used and free space, in bytes.
+    """
+    st = os.statvfs(path)
+    free = st.f_bavail * st.f_frsize
+    total = st.f_blocks * st.f_frsize
+    used = (st.f_blocks - st.f_bfree) * st.f_frsize
+    return _ntuple_diskusage(total, used, free)
 
 try:
     import RPi.GPIO as GPIO
 except RuntimeError:
     print("Error importing RPi.GPIO!  This is probably because you need superuser privileges.  You can achieve this by using 'sudo' to run your script")
 
+def trigger_picture(self):
+    retries=2
+    delay=0.5
+    result = 0
+    for i in range(1 + retries):
+        # triggers shutter, image is stored in camera roll (no path returned)
+        result=pp.gp.gp_camera_trigger_capture(self.cam._cam)
+        if result == 0: break
+        else:
+          time.sleep(delay)
+          print("trigger_picture() result %d - retry #%d..." % (result,i))
+    print result
 
 button_pressed = False
-
-def main_loop():
-    global button_pressed
-    print "---- INITIALIZE ----"
-
-    storage_path = datetime.datetime.now().strftime("/mnt/usb_drive/%I%M%p %B %d, %Y")
-    image_index = 0
-
-    print "make directory for photos: %s" % storage_path
-    if not os.path.exists(storage_path):
-        os.makedirs(storage_path)    
-    
-    #print "Sanity check (disk space)"
-
-
-    #Button was pressed
-    while (True):
-        print "Initialize Lighting"
-        photo_booth.lighting.setLightingIdle();
-        button_pressed = False
-        photo_booth.photosRemaining = 3
-        while not (button_pressed):
-            time.sleep(1)
-
-        while (photo_booth.photosRemaining):
-            print "---- Photo Countdown ----"
-            #3
-            photo_booth.lighting.setLightingThree();
-            print "Play Tick Noise"
-            pygame.mixer.music.load("countdown_tick.wav")
-            pygame.mixer.music.play()
-            time.sleep(1.5)
-
-            #2
-            photo_booth.lighting.setLightingTwo();
-            print "Play Tick Noise"
-            pygame.mixer.music.load("countdown_tick.wav")
-            pygame.mixer.music.play()
-            time.sleep(1.5)
-
-            #1
-            photo_booth.lighting.setLightingOne();
-            print "Play Tick Noise"
-            pygame.mixer.music.load("countdown_tick.wav")
-            pygame.mixer.music.play()
-            time.sleep(1.5)
-
-            photo_booth.lighting.setLightingFlash();
-            print "Take Photo"
-            try:
-                if photo_booth.cameraError == False:
-                    print"capturing %s/%d.jpg" % (storage_path, image_index)
-                    photo_booth.camera.capture_image("%s/%d.jpg" %(storage_path, image_index))
-                else:
-                    print "(ERROR 1) no photo - camera error"
-                    photo_booth.cameraError = True;
-                    photo_booth.lighting.flash_light.brightness = 10;
-                    photo_booth.lighting.setLighting();
-            except:
-                print "(ERROR 2) no photo - camera error"
-                photo_booth.cameraError = True;
-                photo_booth.lighting.flash_light.brightness = 10;
-                photo_booth.lighting.setLighting();
-
-            image_index += 1
-
-            if photo_booth.cameraError == True:
-                print "---- CAMERA ERROR ----"
-                photo_booth.lighting.setLightingError()
-                while photo_booth.cameraError == True:
-                    print "Cycle Camera Power"
-                    photo_booth.powerDownCamera()
-                    time.sleep(1)
-                    photo_booth.powerUpCamera()
-                    time.sleep(5)
-                    print "wait a while"
-                    try:
-                        photo_booth.camera = piggyphoto.camera()
-                        photo_booth.cfile = piggyphoto.cameraFile()
-                        photo_booth.cameraError = False
-                    except:
-                        print "camera init failed"
-                        photo_booth.cameraError = True
-
-            # no error
-            print "---- PHOTO COMPLETE ----"
-            photo_booth.photosRemaining -= 1
-            photo_booth.lighting.setLightingIdle()
 
 
 class LightingConfig():
@@ -122,24 +65,48 @@ class LightingConfig():
 
 class PhotoBooth:
     def __init__(self, config_file):
+        main_log_file = datetime.datetime.now().strftime("%I%M%p %B %d, %Y.log")
+        logging.basicConfig(level=logging.DEBUG,
+                            format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+                            datefmt='%m-%d %H:%M',
+                            filename='/tmp/photo_booth.log',
+                            filemode='w')
+
+        console = logging.StreamHandler()
+        console.setLevel(logging.INFO)        
+        # set a format which is simpler for console use
+        formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+        # tell the handler to use this format
+        console.setFormatter(formatter)
+        # add the handler to the root logger
+        logging.getLogger('').addHandler(console)
+
+        self.main_logger = logging.getLogger("Main")
+        self.maintenance_logger = logging.getLogger("Maintenance")
+        self.lighting_logger = logging.getLogger("Lighting")
+        self.camera_logger = logging.getLogger("Camera")
+        self.main_logger.debug("Test")
         self.pwm = PWM(0x40, debug=True)
         self.pwm.setPWMFreq(1000)                        # Set frequency to 60 Hz
         self.lighting_config = LightingConfig()
         self.parseConfigFile(config_file)
         GPIO.setmode(GPIO.BOARD)
         pygame.mixer.init()
-        print "Power Up Camera"
+        self.lighting_logger.info("Power Up Camera")
         self.powerUpCamera()
         time.sleep(5)
         try:
             self.camera = piggyphoto.camera()
             self.cfile = piggyphoto.cameraFile()
             self.cameraError = False
+            self.camera_logger.info("Camera OK")
         except:
             print "camera init failed"
             self.cameraError = True
+            self.camera_logger.error("Camera Error - Could not communicate after power up")
         self.photosRemaining = 3
         self.lighting = Lighting(self.lighting_config, self.pwm)
+        self.lighting_logger.debug(self.lighting)
         self.verbose = False
         GPIO.setup(self.shutter_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.add_event_detect(self.shutter_switch_pin, GPIO.FALLING, callback=self.shutter_switch_callback)
@@ -148,16 +115,17 @@ class PhotoBooth:
         pygame.mixer.music.play()
 
     def powerUpCamera(self):
+        self.main_logger.info("Power Up Camera")
         self.pwm.setPWM(self.camera_power_pin, 0, 4095)
 
     def powerDownCamera(self):
+        self.main_logger.info("Power Down Camera")
         self.pwm.setPWM(self.camera_power_pin, 0, 0)
-        
-        config = SafeConfigParser()
 
     #callback used when a button is pressed (tied to GPIO pin)
     def shutter_switch_callback(self, e="no arg"):
         global button_pressed
+        self.main_logger.info("Shutter Button Pressed")
         button_pressed = True
 
 
@@ -179,17 +147,142 @@ class PhotoBooth:
         self.lighting_config.one_pwm_support = config.getboolean('lighting_config', 'one_light_pwm_support')
     def periodicTask(self):
         #if self.stateMachine.current == "idle":
-        print "---- PERIODIC TASK ---- : SANITY CHECK"
-        print "---- PERIODIC TASK ---- : CHANGE MARQEE PIC"
-        threading.Timer(10, self.periodicTask).start()
+        root_usage = disk_usage("/")
+        self.maintenance_logger.info("Root Disk Free Space: %d MB" % (int(root_usage.free) / (1024 * 1024)))
+        if (root_usage.free < 10*1024*1024):
+            self.maintenance_logger.error("Low Disk Space: %d MB Free" % (int(usb_usage.free) / (1024 * 1024)))
+        usb_usage = disk_usage("/mnt/usb_drive")
+        self.maintenance_logger.info("USB Disk Free Space: %d MB" % (int(usb_usage.free) / (1024 * 1024)))
+        if (usb_usage.free < 10*1024*1024):
+            self.maintenance_logger.error("Low Disk Space: Change USB Drive - %d MB Free" % (int(usb_usage.free) / (1024 * 1024)))
+        self.maintenance_logger.info("Update Marqee Picture")
+        threading.Timer(60, self.periodicTask).start()
 
     def run(self):
         self.periodicTask()
-        main_loop()
+        self.main_loop()
+
+    def main_loop(self):
+        global button_pressed
+        self.main_logger.info("Initializing")
+
+        usb_drive_path = "/mnt/usb_drive"
+        if (os.path.ismount(usb_drive_path) == False):
+            self.main_logger.error("USB Drive not mounted - try mounting")
+            os.system("mount /mnt/usb_drive")
+            time.sleep(0.5)
+            if (os.path.ismount(usb_drive_path) == False):
+                self.main_logger.error("Unable to mount USB drive")
+                sys.exit(0)
+            else:
+                self.main_logger.info("Successfully mounted USB Drive")
+
+        storage_path = datetime.datetime.now().strftime("/mnt/usb_drive/%I%M%p %B %d, %Y")
+
+        image_index = 0
+
+
+        self.main_logger.info("make directory for photos: %s" % storage_path)
+        if not os.path.exists(storage_path):
+            os.makedirs(storage_path)    
+        
+
+        log_file = "%s/log.txt" % storage_path
+
+        root_usage = disk_usage("/")
+        self.main_logger.info(root_usage)
+        self.main_logger.info("Root Disk Free Space: %d MB" % (int(root_usage.free) / (1024 * 1024)))
+        if (root_usage.free < 10*1024*1024):
+            self.main_logger.error("Low Disk Space: %d MB Free" % (int(usb_usage.free) / (1024 * 1024)))
+        usb_usage = disk_usage(usb_drive_path)
+        self.main_logger.info(usb_usage)
+        self.main_logger.info("USB Disk Free Space: %d MB" % (int(usb_usage.free) / (1024 * 1024)))
+        if (usb_usage.free < 10*1024*1024):
+            self.main_logger.error("Low Disk Space: Change USB Drive - %d MB Free" % (int(usb_usage.free) / (1024 * 1024)))
+
+
+        #Button was pressed
+        while (True):
+            self.lighting.setLightingIdle();
+            button_pressed = False
+            self.photosRemaining = 3
+            self.main_logger.info("Waiting for button press")
+            while not (button_pressed):
+                time.sleep(1)
+
+            self.main_logger.info("got button press")
+            while (self.photosRemaining):
+                self.main_logger.info("Countdown")
+                #3
+                self.lighting.setLightingThree();
+                pygame.mixer.music.load("countdown_tick.wav")
+                pygame.mixer.music.play()
+                time.sleep(1.5)
+
+                #2
+                self.lighting.setLightingTwo();
+                pygame.mixer.music.load("countdown_tick.wav")
+                pygame.mixer.music.play()
+                time.sleep(1.5)
+
+                #1
+                self.lighting.setLightingOne();
+                pygame.mixer.music.load("countdown_tick.wav")
+                pygame.mixer.music.play()
+                time.sleep(1.5)
+
+                self.lighting.setLightingFlash();
+                self.main_logger.info("Take Photo")
+                try:
+                    if self.cameraError == False:
+                        self.camera_logger.info("capturing %s/%d.jpg" % (storage_path, image_index))
+                        self.camera.capture_image("%s/%d.jpg" %(storage_path, image_index))
+                    else:
+                        self.camera_logger.error("Camera Error 1 - can't run capture_image")
+                        self.cameraError = True;
+                        self.lighting.flash_light.brightness = 10;
+                        self.lighting.setLighting();
+                except:
+                    self.camera_logger.error("Camera Error 2 - can't run capture_image")
+                    self.cameraError = True;
+                    self.lighting.flash_light.brightness = 10;
+                    self.lighting.setLighting();
+
+                image_index += 1
+
+                if self.cameraError == True:
+                    self.camera_logger.error("Starting Camera Error Recovery")
+                    self.lighting.setLightingError()
+                    while self.cameraError == True:
+                        self.powerDownCamera()
+                        time.sleep(1)
+                        self.powerUpCamera()
+                        time.sleep(5)
+                        try:
+                            self.camera = piggyphoto.camera()
+                            self.cfile = piggyphoto.cameraFile()
+                            self.cameraError = False
+                            self.camera_logger.error("Camera Recovered")
+                        except:
+                            self.camera_logger.error("Camera Recovery Failed")
+                            self.cameraError = True
+
+
+                self.main_logger.info("Photo Complete %d" % self.photosRemaining)
+                print "---- PHOTO COMPLETE ----"
+                self.photosRemaining -= 1
+                self.lighting.setLightingIdle()
+
 
 
 photo_booth = PhotoBooth('config.ini')
 
 if __name__ == '__main__':
-    photo_booth.run()
+    try:
+        photo_booth.run()
+    except KeyboardInterrupt:
+        print "Shutdown requested...exiting"
+    except Exception:
+        traceback.print_exc(file=sys.stdout)
+    sys.exit(0)
 
