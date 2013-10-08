@@ -14,6 +14,11 @@ import sys
 import os
 from collections import namedtuple
 import traceback
+import pygame
+try:
+    import RPi.GPIO as GPIO
+except RuntimeError:
+    print("Error importing RPi.GPIO!  This is probably because you need superuser privileges.  You can achieve this by using 'sudo' to run your script")
 
 _ntuple_diskusage = namedtuple('usage', 'total used free')
 
@@ -29,10 +34,6 @@ def disk_usage(path):
     used = (st.f_blocks - st.f_bfree) * st.f_frsize
     return _ntuple_diskusage(total, used, free)
 
-try:
-    import RPi.GPIO as GPIO
-except RuntimeError:
-    print("Error importing RPi.GPIO!  This is probably because you need superuser privileges.  You can achieve this by using 'sudo' to run your script")
 
 def trigger_picture(self):
     retries=2
@@ -65,6 +66,9 @@ class LightingConfig():
 
 class PhotoBooth:
     def __init__(self, config_file):
+        self.storage_path = []
+        self.display_image_files = []
+        self.display_image_index = 0
         main_log_file = datetime.datetime.now().strftime("%I%M%p %B %d, %Y.log")
         logging.basicConfig(level=logging.DEBUG,
                             format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
@@ -113,6 +117,9 @@ class PhotoBooth:
         pygame.mixer.music.set_volume(1)
         pygame.mixer.music.load("startup.wav")
         pygame.mixer.music.play()
+        pygame.init()
+        self.screen = pygame.display.set_mode((0, 0))
+        self.clock = pygame.time.Clock()
 
     def powerUpCamera(self):
         self.main_logger.info("Power Up Camera")
@@ -125,8 +132,9 @@ class PhotoBooth:
     #callback used when a button is pressed (tied to GPIO pin)
     def shutter_switch_callback(self, e="no arg"):
         global button_pressed
-        self.main_logger.info("Shutter Button Pressed")
-        button_pressed = True
+        if (button_pressed == False):
+            self.main_logger.info("Shutter Button Pressed")
+            button_pressed = True
 
 
     def parseConfigFile(self, configFile):
@@ -145,7 +153,26 @@ class PhotoBooth:
         self.lighting_config.two_pwm_support = config.getboolean('lighting_config', 'two_light_pwm_support')
         self.lighting_config.one_light_pin = config.getint('lighting_config', 'one_light_pin')
         self.lighting_config.one_pwm_support = config.getboolean('lighting_config', 'one_light_pwm_support')
+
     def periodicTask(self):
+        if len(self.display_image_files) > self.display_image_index:
+            print self.display_image_files
+            print "displaying image index: %d" % self.display_image_index
+            print "Display Image %s/%s" % (self.storage_path, self.display_image_files[self.display_image_index])
+            if os.path.isfile("%s/%s" % (self.storage_path, self.display_image_files[self.display_image_index])):
+                image = pygame.image.load("%s/%s" % (self.storage_path, self.display_image_files[self.display_image_index]))
+                image = pygame.transform.scale(image,(720,480))
+                self.screen.fill((255,255,255))
+                self.screen.blit(image,(0,0))
+                self.clock.tick(1)
+                pygame.display.flip()   
+            self.display_image_index += 1
+        else:
+            self.display_image_index = 0
+
+        threading.Timer(10, self.periodicTask).start()
+
+    def maintenanceTask(self):
         #if self.stateMachine.current == "idle":
         root_usage = disk_usage("/")
         self.maintenance_logger.info("Root Disk Free Space: %d MB" % (int(root_usage.free) / (1024 * 1024)))
@@ -156,9 +183,10 @@ class PhotoBooth:
         if (usb_usage.free < 10*1024*1024):
             self.maintenance_logger.error("Low Disk Space: Change USB Drive - %d MB Free" % (int(usb_usage.free) / (1024 * 1024)))
         self.maintenance_logger.info("Update Marqee Picture")
-        threading.Timer(60, self.periodicTask).start()
+        threading.Timer(30, self.periodicTask).start()
 
     def run(self):
+        self.maintenanceTask()
         self.periodicTask()
         self.main_loop()
 
@@ -177,17 +205,17 @@ class PhotoBooth:
             else:
                 self.main_logger.info("Successfully mounted USB Drive")
 
-        storage_path = datetime.datetime.now().strftime("/mnt/usb_drive/%I%M%p %B %d, %Y")
+        self.storage_path = datetime.datetime.now().strftime("/mnt/usb_drive/%I%M%p %B %d, %Y")
 
         image_index = 0
 
 
-        self.main_logger.info("make directory for photos: %s" % storage_path)
-        if not os.path.exists(storage_path):
-            os.makedirs(storage_path)    
+        self.main_logger.info("make directory for photos: %s" % self.storage_path)
+        if not os.path.exists(self.storage_path):
+            os.makedirs(self.storage_path)    
         
 
-        log_file = "%s/log.txt" % storage_path
+        log_file = "%s/log.txt" % self.storage_path
 
         root_usage = disk_usage("/")
         self.main_logger.info(root_usage)
@@ -207,6 +235,8 @@ class PhotoBooth:
             button_pressed = False
             self.photosRemaining = 3
             self.main_logger.info("Waiting for button press")
+            self.display_image_files = sorted(os.listdir(self.storage_path), reverse=True)
+            self.display_image_index = 0
             while not (button_pressed):
                 time.sleep(1)
 
@@ -235,8 +265,8 @@ class PhotoBooth:
                 self.main_logger.info("Take Photo")
                 try:
                     if self.cameraError == False:
-                        self.camera_logger.info("capturing %s/%d.jpg" % (storage_path, image_index))
-                        self.camera.capture_image("%s/%d.jpg" %(storage_path, image_index))
+                        self.camera_logger.info("capturing %s/%d.jpg" % (self.storage_path, image_index))
+                        self.camera.capture_image("%s/%d.jpg" %(self.storage_path, image_index))
                     else:
                         self.camera_logger.error("Camera Error 1 - can't run capture_image")
                         self.cameraError = True;
