@@ -7,6 +7,8 @@ import threading
 import pygame
 import time
 import schnapphoto		
+import datetime
+import os
 
 try:
     import RPi.GPIO as GPIO
@@ -19,23 +21,26 @@ button_pressed = False
 def main_loop():
     global button_pressed
     print "---- INITIALIZE ----"
-    print "Initialize Lighting"
-    photo_booth.lighting.setLightingIdle();
 
-    #print "Power Up Camera"
-    #set camera power GPIO
-    #wait a while
+    storage_path = datetime.datetime.now().strftime("/mnt/usb_drive/%I%M%p %B %d, %Y")
+    image_index = 0
 
-    photo_booth.photosRemaining = 3
+    print "make directory for photos: %s" % storage_path
+    if not os.path.exists(storage_path):
+        os.makedirs(storage_path)    
     
     #print "Sanity check (disk space)"
 
-    while not (button_pressed):
-        time.sleep(1)
 
     #Button was pressed
-    button_pressed = False
     while (True):
+        print "Initialize Lighting"
+        photo_booth.lighting.setLightingIdle();
+        button_pressed = False
+        photo_booth.photosRemaining = 3
+        while not (button_pressed):
+            time.sleep(1)
+
         while (photo_booth.photosRemaining):
             print "---- Photo Countdown ----"
             #3
@@ -63,7 +68,8 @@ def main_loop():
             print "Take Photo"
             try:
                 if photo_booth.cameraError == False:
-                    photo_booth.camera.capture_image('file.jpg')
+                    print"capturing %s/%d.jpg" % (storage_path, image_index)
+                    photo_booth.camera.capture_image("%s/%d.jpg" %(storage_path, image_index))
                 else:
                     print "(ERROR 1) no photo - camera error"
                     photo_booth.cameraError = True;
@@ -75,19 +81,25 @@ def main_loop():
                 photo_booth.lighting.flash_light.brightness = 10;
                 photo_booth.lighting.setLighting();
 
+            image_index += 1
+
             if photo_booth.cameraError == True:
                 print "---- CAMERA ERROR ----"
                 photo_booth.lighting.setLightingError()
                 while photo_booth.cameraError == True:
                     print "Cycle Camera Power"
+                    photo_booth.powerDownCamera()
+                    time.sleep(1)
+                    photo_booth.powerUpCamera()
+                    time.sleep(5)
                     print "wait a while"
                     try:
-                        self.camera = piggyphoto.camera()
-                        self.cfile = piggyphoto.cameraFile()
-                        self.cameraError = False
+                        photo_booth.camera = piggyphoto.camera()
+                        photo_booth.cfile = piggyphoto.cameraFile()
+                        photo_booth.cameraError = False
                     except:
                         print "camera init failed"
-                        self.cameraError = True
+                        photo_booth.cameraError = True
 
             # no error
             print "---- PHOTO COMPLETE ----"
@@ -110,6 +122,15 @@ class LightingConfig():
 
 class PhotoBooth:
     def __init__(self, config_file):
+        self.pwm = PWM(0x40, debug=True)
+        self.pwm.setPWMFreq(1000)                        # Set frequency to 60 Hz
+        self.lighting_config = LightingConfig()
+        self.parseConfigFile(config_file)
+        GPIO.setmode(GPIO.BOARD)
+        pygame.mixer.init()
+        print "Power Up Camera"
+        self.powerUpCamera()
+        time.sleep(5)
         try:
             self.camera = piggyphoto.camera()
             self.cfile = piggyphoto.cameraFile()
@@ -118,12 +139,6 @@ class PhotoBooth:
             print "camera init failed"
             self.cameraError = True
         self.photosRemaining = 3
-        self.pwm = PWM(0x40, debug=True)
-        self.pwm.setPWMFreq(1000)                        # Set frequency to 60 Hz
-        self.lighting_config = LightingConfig()
-        self.parseConfigFile(config_file)
-        GPIO.setmode(GPIO.BOARD)
-        pygame.mixer.init()
         self.lighting = Lighting(self.lighting_config, self.pwm)
         self.verbose = False
         GPIO.setup(self.shutter_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -135,7 +150,7 @@ class PhotoBooth:
     def powerUpCamera(self):
         self.pwm.setPWM(self.camera_power_pin, 0, 4095)
 
-    def powerDowmCamera(self):
+    def powerDownCamera(self):
         self.pwm.setPWM(self.camera_power_pin, 0, 0)
         
         config = SafeConfigParser()
@@ -169,21 +184,12 @@ class PhotoBooth:
         threading.Timer(10, self.periodicTask).start()
 
     def run(self):
-        main_loop()
         self.periodicTask()
+        main_loop()
 
 
 photo_booth = PhotoBooth('config.ini')
 
-
-
-
-
 if __name__ == '__main__':
     photo_booth.run()
-    time.sleep(3)
-    photo_booth.shutter_switch_callback();
-    time.sleep(15)
-    photo_booth.shutter_switch_callback();
-    time.sleep(300)
 
