@@ -1,0 +1,36 @@
+10-08 17:43 Main         DEBUG    Test
+10-08 17:43 Lighting     INFO     Power Up Camera
+10-08 17:43 Main         INFO     Power Up Camera
+10-08 17:43 Camera       INFO     Camera OK
+10-08 17:43 Lighting     DEBUG    
+Lighting
+Name: flash
+Brightness: 10
+GPIO Pin: 4
+
+Name: ready
+Brightness: 0
+GPIO Pin: 0
+
+Name: three
+Brightness: 0
+GPIO Pin: 1
+
+Name: two
+Brightness: 0
+GPIO Pin: 2
+
+Name: one
+Brightness: 0
+GPIO Pin: 3
+
+10-08 17:43 Maintenance  INFO     Root Disk Free Space: 806 MB
+10-08 17:43 Maintenance  INFO     USB Disk Free Space: 7544 MB
+10-08 17:43 Maintenance  INFO     Update Marqee Picture
+10-08 17:43 Main         INFO     Initializing
+10-08 17:43 Main         INFO     make directory for photos: /mnt/usb_drive/0543PM October 08, 2013
+10-08 17:43 Main         INFO     usage(total=3837476864L, used=2797248512L, free=845324288L)
+10-08 17:43 Main         INFO     Root Disk Free Space: 806 MB
+10-08 17:43 Main         INFO     usage(total=15518900224L, used=7608393728L, free=7910506496L)
+10-08 17:43 Main         INFO     USB Disk Free Space: 7544 MB
+10-08 17:43 Main         INFO     Waiting for button press

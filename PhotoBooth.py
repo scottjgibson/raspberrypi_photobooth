@@ -69,11 +69,11 @@ class PhotoBooth:
         self.storage_path = []
         self.display_image_files = []
         self.display_image_index = 0
-        main_log_file = datetime.datetime.now().strftime("%I%M%p %B %d, %Y.log")
+        main_log_file = datetime.datetime.now().strftime("logs/%I%M%p %B %d, %Y.log")
         logging.basicConfig(level=logging.DEBUG,
                             format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                             datefmt='%m-%d %H:%M',
-                            filename='/tmp/photo_booth.log',
+                            filename='logs/photo_booth.log',
                             filemode='w')
 
         console = logging.StreamHandler()
