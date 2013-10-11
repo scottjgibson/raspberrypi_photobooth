@@ -7,7 +7,7 @@ from Lighting import Lighting
 import threading
 import pygame
 import time
-# import schnapphoto		
+# import schnapphoto        
 import datetime
 import os
 import logging
@@ -36,19 +36,6 @@ def disk_usage(path):
     used = (st.f_blocks - st.f_bfree) * st.f_frsize
     return _ntuple_diskusage(total, used, free)
 
-
-def trigger_picture(self):
-    retries=2
-    delay=0.5
-    result = 0
-    for i in range(1 + retries):
-        # triggers shutter, image is stored in camera roll (no path returned)
-        result=pp.gp.gp_camera_trigger_capture(self.cam._cam)
-        if result == 0: break
-        else:
-          time.sleep(delay)
-          print("trigger_picture() result %d - retry #%d..." % (result,i))
-    print result
 
 button_pressed = False
 
@@ -91,37 +78,47 @@ class PhotoBooth:
         self.maintenance_logger = logging.getLogger("Maintenance")
         self.lighting_logger = logging.getLogger("Lighting")
         self.camera_logger = logging.getLogger("Camera")
-        self.main_logger.debug("Test")
+        self.lighting_logger.info("Setup Lighting")
         self.pwm = PWM(0x40, debug=True)
         self.pwm.setPWMFreq(1000)                        # Set frequency to 60 Hz
         self.lighting_config = LightingConfig()
         self.parseConfigFile(config_file)
-        GPIO.setmode(GPIO.BOARD)
-        pygame.mixer.init()
-        self.lighting_logger.info("Power Up Camera")
-        self.powerUpCamera()
-        time.sleep(5)
-        try:
-            self.camera = piggyphoto.camera()
-            self.cfile = piggyphoto.cameraFile()
-            self.cameraError = False
-            self.camera_logger.info("Camera OK")
-        except:
-            print "camera init failed"
-            self.cameraError = True
-            self.camera_logger.error("Camera Error - Could not communicate after power up")
-        self.photosRemaining = 3
         self.lighting = Lighting(self.lighting_config, self.pwm)
         self.lighting_logger.debug(self.lighting)
+        self.lighting_logger.info("Setup Lighting - OK")
+        GPIO.setmode(GPIO.BOARD)
+        pygame.mixer.init()
+        self.lighting_logger.info("Setup Lighting - OK")
+        self.camera_logger.info("Setup Camera")
+        self.cameraError = True
+        while self.cameraError == True:
+            self.powerDownCamera()
+            time.sleep(1)
+            self.powerUpCamera()
+            time.sleep(5)
+            try:
+                self.camera = piggyphoto.camera()
+                self.cfile = piggyphoto.cameraFile()
+                self.cameraError = False
+                self.camera_logger.info("Setup Camera - OK")
+            except:
+                self.camera_logger.error("Setup Camera - Error")
+                self.cameraError = True
+
+        self.photosRemaining = 3
+        self.main_logger.info("Setup Button Input")
         self.verbose = False
         GPIO.setup(self.shutter_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.add_event_detect(self.shutter_switch_pin, GPIO.FALLING, callback=self.shutter_switch_callback)
+        self.main_logger.info("Setup Button Input - OK")
+        self.main_logger.info("Setup Video Display")
         pygame.mixer.music.set_volume(1)
         pygame.mixer.music.load("startup.wav")
         pygame.mixer.music.play()
         pygame.init()
         self.screen = pygame.display.set_mode((0, 0))
         self.clock = pygame.time.Clock()
+        self.main_logger.info("Setup Video Display - OK")
 
     def powerUpCamera(self):
         self.main_logger.info("Power Up Camera")
