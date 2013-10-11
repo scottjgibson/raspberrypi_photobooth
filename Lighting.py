@@ -9,7 +9,7 @@ class Lighting:
             self.pwm = pwm
         else:
             self.pwm = PWM(0x40, debug=True)
-            self.pwm.setPWMFreq(1600)                        # Set frequency to 60 Hz
+            self.pwm.setPWMFreq(1000)                        # Set frequency to 60 Hz
         self.flash_light = Light("flash", config.flash_light_pin, self.pwm)
         self.ready_light = Light("ready", config.ready_light_pin, self.pwm)
         self.three_light = Light("three", config.three_light_pin, self.pwm)

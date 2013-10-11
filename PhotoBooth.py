@@ -1,14 +1,13 @@
 #!/usr/bin/python
 
 import piggyphoto
-from fysom import Fysom
 from Adafruit_PWM_Servo_Driver import PWM
 from ConfigParser import SafeConfigParser 
 from Lighting import Lighting
 import threading
 import pygame
 import time
-import schnapphoto		
+# import schnapphoto		
 import datetime
 import os
 import logging
