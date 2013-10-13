@@ -242,7 +242,7 @@ class PhotoBooth:
             for fn in self.display_image_files:
                 all_files += " %s/%s" % (self.storage_path, fn)
             if len(self.display_image_files):
-                _cmd = "sudo fbi -a --noverbose -T 2 -t 5 %s &" % all_files
+                _cmd = "sudo /usr/bin/nice -n 18 fbi -a --noverbose -T 2 -t 5 %s &" % all_files
                 print _cmd
                 os.system("sudo pkill fbi")
                 os.system(_cmd)
@@ -254,6 +254,7 @@ class PhotoBooth:
             self.main_logger.info("Waiting for button press")
             while not (button_pressed):
                 time.sleep(1)
+            os.system("sudo pkill fbi")
             self.main_logger.info("got button press")
 
             while (self.photosRemaining):
