@@ -58,7 +58,7 @@ class PhotoBooth:
         self.storage_path = []
         self.display_image_files = []
         self.display_image_index = 0
-        main_log_file = datetime.datetime.now().strftime("logs/%I%M%p %B %d, %Y.log")
+        main_log_file = datetime.datetime.now().strftime("logs/%I%M%p_%B_%d_%Y.log")
         logging.basicConfig(level=logging.DEBUG,
                             format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                             datefmt='%m-%d %H:%M',
@@ -96,6 +96,9 @@ class PhotoBooth:
             time.sleep(1)
             self.powerUpCamera()
             time.sleep(5)
+            os.system("sudo lsusb | grep Canon | sed 's/Bus\ /sudo\ \/home\/pi\/usbreset\ \/dev\/bus\/usb\//' | sed 's/\ Device\ /\//' | sed 's/:.*//' > /home/pi/resetcmd")
+            os.system("sh /home/pi/resetcmd")
+            time.sleep(1)
             try:
                 self.camera = piggyphoto.camera()
                 self.cfile = piggyphoto.cameraFile()
@@ -112,12 +115,12 @@ class PhotoBooth:
         GPIO.add_event_detect(self.shutter_switch_pin, GPIO.FALLING, callback=self.shutter_switch_callback)
         self.main_logger.info("Setup Button Input - OK")
         self.main_logger.info("Setup Video Display")
-        pygame.mixer.music.set_volume(1)
-        pygame.mixer.music.load("startup.wav")
-        pygame.mixer.music.play()
-        pygame.init()
-        self.screen = pygame.display.set_mode((0, 0))
-        self.clock = pygame.time.Clock()
+#        pygame.mixer.music.set_volume(1)
+#        pygame.mixer.music.load("startup.wav")
+#        pygame.mixer.music.play()
+#        pygame.init()
+#        self.screen = pygame.display.set_mode((0, 0))
+#        self.clock = pygame.time.Clock()
         self.main_logger.info("Setup Video Display - OK")
 
     def powerUpCamera(self):
@@ -182,11 +185,11 @@ class PhotoBooth:
         if (usb_usage.free < 10*1024*1024):
             self.maintenance_logger.error("Low Disk Space: Change USB Drive - %d MB Free" % (int(usb_usage.free) / (1024 * 1024)))
         self.maintenance_logger.info("Update Marqee Picture")
-        threading.Timer(30, self.periodicTask).start()
+        threading.Timer(30, self.maintenanceTask).start()
 
     def run(self):
-        self.maintenanceTask()
-        self.periodicTask()
+#        self.maintenanceTask()
+#        self.periodicTask()
         self.main_loop()
 
     def main_loop(self):
@@ -204,7 +207,7 @@ class PhotoBooth:
             else:
                 self.main_logger.info("Successfully mounted USB Drive")
 
-        self.storage_path = datetime.datetime.now().strftime("/mnt/usb_drive/%I%M%p %B %d, %Y")
+        self.storage_path = datetime.datetime.now().strftime("/mnt/usb_drive/%I%M%p_%B_%d_%Y")
 
         image_index = 0
 
@@ -233,13 +236,26 @@ class PhotoBooth:
             self.lighting.setLightingIdle();
             button_pressed = False
             self.photosRemaining = 3
-            self.main_logger.info("Waiting for button press")
             self.display_image_files = sorted(os.listdir(self.storage_path), reverse=True)
+            
+            all_files = ''
+            for fn in self.display_image_files:
+                all_files += " %s/%s" % (self.storage_path, fn)
+            if len(self.display_image_files):
+                _cmd = "sudo fbi -a --noverbose -T 2 -t 5 %s &" % all_files
+                print _cmd
+                os.system("sudo pkill fbi")
+                os.system(_cmd)
             self.display_image_index = 0
+            GPIO.setup(self.shutter_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.remove_event_detect(self.shutter_switch_pin)
+            GPIO.add_event_detect(self.shutter_switch_pin, GPIO.FALLING, callback=self.shutter_switch_callback)
+
+            self.main_logger.info("Waiting for button press")
             while not (button_pressed):
                 time.sleep(1)
-
             self.main_logger.info("got button press")
+
             while (self.photosRemaining):
                 self.main_logger.info("Countdown")
                 #3
@@ -265,7 +281,7 @@ class PhotoBooth:
                 try:
                     if self.cameraError == False:
                         self.camera_logger.info("capturing %s/%05d.jpg" % (self.storage_path, image_index))
-                        self.camera.capture_image("%s/%d.jpg" %(self.storage_path, image_index))
+                        self.camera.capture_image("%s/%04d.jpg" %(self.storage_path, image_index))
                     else:
                         self.camera_logger.error("Camera Error 1 - can't run capture_image")
                         self.cameraError = True;
@@ -287,6 +303,9 @@ class PhotoBooth:
                         time.sleep(1)
                         self.powerUpCamera()
                         time.sleep(5)
+                        os.system("sudo lsusb | grep Canon | sed 's/Bus\ /sudo\ \/home\/pi\/usbreset\ \/dev\/bus\/usb\//' | sed 's/\ Device\ /\//' | sed 's/:.*//' > /home/pi/resetcmd")
+                        os.system("sh /home/pi/resetcmd")
+                        time.sleep(1)
                         try:
                             self.camera = piggyphoto.camera()
                             self.cfile = piggyphoto.cameraFile()
