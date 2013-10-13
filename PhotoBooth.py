@@ -246,6 +246,12 @@ class PhotoBooth:
                 print _cmd
                 os.system("sudo pkill fbi")
                 os.system(_cmd)
+            else:
+                _cmd = "sudo /usr/bin/nice -n 18 fbi -a --noverbose -T 2 /home/pi/git/raspberrypi_photobooth/logo.jpg"
+                print _cmd
+                os.system("sudo pkill fbi")
+                os.system(_cmd)
+
             self.display_image_index = 0
             GPIO.setup(self.shutter_switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
             GPIO.remove_event_detect(self.shutter_switch_pin)
@@ -255,6 +261,10 @@ class PhotoBooth:
             while not (button_pressed):
                 time.sleep(1)
             os.system("sudo pkill fbi")
+	    _cmd = "sudo /usr/bin/nice -n 18 fbi -a --noverbose -T 2 /home/pi/git/raspberrypi_photobooth/logo.jpg"
+	    os.system("sudo pkill fbi")
+	    os.system(_cmd)
+
             self.main_logger.info("got button press")
 
             while (self.photosRemaining):
